@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Centro Cultural — Gestión</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F7F4EE; --cream-dark: #EDE8DE; --ink: #1C1A17; --ink-soft: #4A4640;
+    --ink-muted: #8C8780; --terracotta: #C4683A; --terracotta-light: #F0DDD4;
+    --terracotta-dark: #8A3F1E; --sage: #5C7A5C; --sage-light: #D8E5D8;
+    --indigo: #3A4C7A; --indigo-light: #D4DAEA; --gold: #B8942A; --gold-light: #F5EDD4;
+    --danger: #B03030; --danger-light: #F5D4D4;
+    --border: rgba(28,26,23,0.12); --border-strong: rgba(28,26,23,0.25);
+    --shadow: 0 1px 3px rgba(28,26,23,0.08), 0 4px 16px rgba(28,26,23,0.06);
+    --shadow-lg: 0 4px 12px rgba(28,26,23,0.12), 0 16px 48px rgba(28,26,23,0.1);
+    --radius: 10px; --radius-lg: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--ink); min-height: 100vh; font-size: 15px; }
+  h1,h2,h3,h4 { font-family: 'Playfair Display', serif; font-weight: 500; }
+
+  #app { display: flex; min-height: 100vh; }
+  #sidebar { width: 240px; min-width: 240px; background: var(--ink); color: var(--cream); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; }
+  .sidebar-logo { padding: 28px 24px 20px; border-bottom: 1px solid rgba(247,244,238,0.1); }
+  .sidebar-logo h2 { font-size: 17px; color: var(--cream); letter-spacing: 0.02em; }
+  .sidebar-logo p { font-size: 11px; color: var(--ink-muted); margin-top: 3px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sidebar-user { padding: 16px 24px; border-bottom: 1px solid rgba(247,244,238,0.08); display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; flex-shrink: 0; }
+  .avatar.admin { background: var(--terracotta); color: white; }
+  .avatar.tallerista { background: var(--indigo); color: white; }
+  .avatar.alumno { background: var(--sage); color: white; }
+  .sidebar-user-info p { font-size: 13px; font-weight: 500; color: var(--cream); }
+  .sidebar-user-info span { font-size: 11px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-section { padding: 8px 24px 4px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 24px; cursor: pointer; font-size: 14px; color: rgba(247,244,238,0.7); transition: all 0.15s; border-left: 2px solid transparent; }
+  .nav-item:hover { color: var(--cream); background: rgba(247,244,238,0.05); }
+  .nav-item.active { color: var(--cream); border-left-color: var(--terracotta); background: rgba(196,104,58,0.1); }
+  .nav-item .icon { width: 16px; text-align: center; font-size: 14px; }
+  .sidebar-footer { padding: 16px 24px; border-top: 1px solid rgba(247,244,238,0.08); }
+  .btn-logout { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(247,244,238,0.5); cursor: pointer; transition: color 0.15s; background: none; border: none; padding: 0; font-family: 'DM Sans', sans-serif; }
+  .btn-logout:hover { color: var(--danger); }
+  #main { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  #topbar { background: var(--cream); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+  #page-title { font-size: 20px; color: var(--ink); }
+  #content { padding: 28px 32px; flex: 1; }
+
+  #login-screen { min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center; }
+  .login-card { background: var(--cream); border-radius: var(--radius-lg); padding: 48px 44px; width: 380px; box-shadow: var(--shadow-lg); }
+  .login-card h1 { font-size: 28px; margin-bottom: 4px; }
+  .login-card .subtitle { color: var(--ink-muted); font-size: 14px; margin-bottom: 32px; }
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; font-family: 'DM Sans', sans-serif; background: white; color: var(--ink); transition: border-color 0.15s; outline: none; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--terracotta); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: var(--radius); font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; border: none; transition: all 0.15s; text-decoration: none; }
+  .btn-primary { background: var(--terracotta); color: white; }
+  .btn-primary:hover { background: var(--terracotta-dark); }
+  .btn-secondary { background: white; color: var(--ink-soft); border: 1px solid var(--border-strong); }
+  .btn-secondary:hover { border-color: var(--ink); color: var(--ink); }
+  .btn-danger { background: var(--danger-light); color: var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: white; }
+  .btn-ghost { background: transparent; color: var(--ink-soft); padding: 6px 10px; }
+  .btn-ghost:hover { background: var(--cream-dark); color: var(--ink); }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .btn-full { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .card { background: white; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow); padding: 24px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .card-title { font-size: 16px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .stat-card { background: white; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
+  .stat-label { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
+  .stat-value { font-family: 'Playfair Display', serif; font-size: 30px; color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-muted); border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--cream); }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .badge-admin { background: var(--terracotta-light); color: var(--terracotta-dark); }
+  .badge-tallerista { background: var(--indigo-light); color: var(--indigo); }
+  .badge-alumno { background: var(--sage-light); color: var(--sage); }
+  .badge-success { background: #D4EDD4; color: #2A6A2A; }
+  .badge-absent { background: var(--danger-light); color: var(--danger); }
+  .badge-pending { background: var(--gold-light); color: var(--gold); }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(28,26,23,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .modal { background: var(--cream); border-radius: var(--radius-lg); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+  .modal-header { padding: 24px 28px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--cream); z-index: 1; }
+  .modal-header h3 { font-size: 20px; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--ink-muted); padding: 4px; line-height: 1; }
+  .modal-close:hover { color: var(--ink); }
+  .modal-body { padding: 24px 28px; }
+  .modal-footer { padding: 16px 28px 24px; display: flex; justify-content: flex-end; gap: 10px; }
+
+  .grupo-card { background: white; border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 18px 20px; transition: box-shadow 0.15s; }
+  .grupo-card:hover { box-shadow: var(--shadow); }
+  .grupo-dias { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+  .dia-pill { background: var(--cream-dark); color: var(--ink-soft); font-size: 11px; padding: 2px 8px; border-radius: 12px; }
+  .alumno-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .alumno-row:last-child { border-bottom: none; }
+
+  .asist-btn { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: white; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .asist-btn.presente { background: #D4EDD4; border-color: #A0CFA0; color: #2A6A2A; }
+  .asist-btn.ausente { background: var(--danger-light); border-color: #E0A0A0; color: var(--danger); }
+
+  .first-login-banner { background: var(--gold-light); border: 1px solid var(--gold); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  .first-login-banner p { font-size: 14px; color: var(--gold); }
+  .empty { text-align: center; padding: 48px 24px; color: var(--ink-muted); }
+  .search-input { padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; font-family: 'DM Sans', sans-serif; background: white; width: 240px; outline: none; }
+  .search-input:focus { border-color: var(--terracotta); }
+  .check-list { list-style: none; }
+  .check-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .check-list li:last-child { border-bottom: none; }
+  .check-list input[type=checkbox] { accent-color: var(--terracotta); width: 16px; height: 16px; cursor: pointer; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .hidden { display: none !important; }
+  .alert { padding: 12px 16px; border-radius: var(--radius); font-size: 14px; margin-bottom: 16px; }
+  .alert-error { background: var(--danger-light); color: var(--danger); }
+  .alert-success { background: #D4EDD4; color: #2A6A2A; }
+  .loading { text-align: center; padding: 32px; color: var(--ink-muted); font-size: 14px; }
+
+  #registro-screen { min-height: 100vh; background: var(--ink); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .registro-card { background: var(--cream); border-radius: var(--radius-lg); padding: 44px; width: 100%; max-width: 580px; box-shadow: var(--shadow-lg); }
+  .registro-card h1 { font-size: 26px; margin-bottom: 4px; }
+  .registro-card .subtitle { color: var(--ink-muted); font-size: 14px; margin-bottom: 32px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Centro Cultural</h1>
+    <p class="subtitle">Ingresá con tu documento y contraseña</p>
+    <div id="login-alert"></div>
+    <div class="form-group">
+      <label>Documento (Cédula)</label>
+      <input type="text" id="login-doc" placeholder="12345678" />
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" />
+    </div>
+    <button class="btn btn-primary btn-full" id="btn-login" onclick="doLogin()" style="margin-top:8px">Ingresar</button>
+    <div style="text-align:center;margin-top:16px">
+      <span style="font-size:13px;color:var(--ink-muted)">¿Sos alumno nuevo? </span>
+      <a href="#" onclick="showRegistro()" style="font-size:13px;color:var(--terracotta)">Registrate aquí</a>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTRO ALUMNO -->
+<div id="registro-screen" class="hidden">
+  <div class="registro-card">
+    <h1>Registro de Alumno</h1>
+    <p class="subtitle">Completá tus datos para inscribirte en el centro cultural</p>
+    <div id="reg-alert"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input type="text" id="reg-nombre" /></div>
+      <div class="form-group"><label>Apellido</label><input type="text" id="reg-apellido" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Documento (Cédula)</label><input type="text" id="reg-doc" /></div>
+      <div class="form-group"><label>Fecha de Nacimiento</label><input type="date" id="reg-fnac" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Calle y Número</label><input type="text" id="reg-calle" /></div>
+      <div class="form-group"><label>Esquina</label><input type="text" id="reg-esquina" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Teléfono</label><input type="text" id="reg-tel" /></div>
+      <div class="form-group"><label>Nombre de Madre / Padre / Tutor</label><input type="text" id="reg-tutor" /></div>
+    </div>
+    <div class="form-group">
+      <label>Grupo al que desea pertenecer</label>
+      <select id="reg-grupo"><option value="">— Seleccionar grupo —</option></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Contraseña</label><input type="password" id="reg-pass" /></div>
+      <div class="form-group"><label>Confirmar contraseña</label><input type="password" id="reg-pass2" /></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <button class="btn btn-secondary" onclick="showLogin()">← Volver</button>
+      <button class="btn btn-primary" id="btn-reg" style="flex:1" onclick="doRegistro()">Registrarme</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <h2>Centro Cultural</h2>
+      <p>Sistema de Gestión</p>
+    </div>
+    <div class="sidebar-user">
+      <div class="avatar" id="sidebar-avatar">AD</div>
+      <div class="sidebar-user-info">
+        <p id="sidebar-name">Administración</p>
+        <span id="sidebar-role">administración</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="doLogout()">✕ Cerrar sesión</button>
+    </div>
+  </aside>
+  <div id="main">
+    <div id="topbar">
+      <h1 id="page-title" class="card-title">Dashboard</h1>
+      <div id="topbar-actions"></div>
+    </div>
+    <div id="content">
+      <div id="page-dashboard" class="page active"></div>
+      <div id="page-grupos" class="page"></div>
+      <div id="page-talleristas" class="page"></div>
+      <div id="page-alumnos" class="page"></div>
+      <div id="page-asistencia" class="page"></div>
+      <div id="page-perfil" class="page"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div class="modal" id="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modal-title">Modal</h3>
+      <button class="modal-close" onclick="closeModalDirect()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SUPABASE
+// ============================================================
+const { createClient } = supabase;
+const sb = createClient(
+  'https://ubuasdkbgvjggwvbbsky.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVidWFzZGtiZ3ZqZ2d3dmJic2t5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzA3OTUsImV4cCI6MjA5MjAwNjc5NX0.gt4Tf9kbQE3oioZwo9ukySa_8ENJVS8RGzns_n6kraA'
+);
+
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let currentUser = null;
+let currentPage = 'dashboard';
+let asistGrupoId = null;
+let asistFecha = new Date().toISOString().split('T')[0];
+
+// ============================================================
+// HELPERS
+// ============================================================
+function loading(msg = 'Cargando...') { return `<div class="loading">${msg}</div>`; }
+function alertHTML(msg, tipo = 'error') { return `<div class="alert alert-${tipo}">${msg}</div>`; }
+function formatFecha(f) { if (!f) return ''; const [y,m,d] = f.split('-'); return `${d}/${m}/${y}`; }
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const doc = document.getElementById('login-doc').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true; btn.textContent = 'Ingresando...';
+  document.getElementById('login-alert').innerHTML = '';
+  const { data, error } = await sb.from('usuarios').select('*').eq('documento', doc).eq('password', pass).single();
+  btn.disabled = false; btn.textContent = 'Ingresar';
+  if (error || !data) {
+    document.getElementById('login-alert').innerHTML = alertHTML('Documento o contraseña incorrectos.');
+    return;
+  }
+  currentUser = data;
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  initApp();
+}
+
+function doLogout() {
+  currentUser = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-doc').value = '';
+  document.getElementById('login-pass').value = '';
+}
+
+async function showRegistro() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('registro-screen').classList.remove('hidden');
+  const { data: grupos } = await sb.from('grupos').select('*, talleristas(nombre, apellido)').order('nombre');
+  const sel = document.getElementById('reg-grupo');
+  sel.innerHTML = '<option value="">— Seleccionar grupo —</option>';
+  (grupos || []).forEach(g => {
+    const t = g.talleristas;
+    sel.innerHTML += `<option value="${g.id}">${g.nombre} (${(g.dias||[]).join(', ')} ${g.horario})${t ? ' — '+t.nombre+' '+t.apellido : ''}</option>`;
+  });
+}
+
+function showLogin() {
+  document.getElementById('registro-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+async function doRegistro() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const apellido = document.getElementById('reg-apellido').value.trim();
+  const doc = document.getElementById('reg-doc').value.trim();
+  const fnac = document.getElementById('reg-fnac').value;
+  const calle = document.getElementById('reg-calle').value.trim();
+  const esquina = document.getElementById('reg-esquina').value.trim();
+  const tel = document.getElementById('reg-tel').value.trim();
+  const tutor = document.getElementById('reg-tutor').value.trim();
+  const grupoId = document.getElementById('reg-grupo').value;
+  const pass = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+
+  if (!nombre || !apellido || !doc || !fnac || !calle || !tel || !tutor || !grupoId || !pass) {
+    document.getElementById('reg-alert').innerHTML = alertHTML('Completá todos los campos.'); return;
+  }
+  if (pass !== pass2) {
+    document.getElementById('reg-alert').innerHTML = alertHTML('Las contraseñas no coinciden.'); return;
+  }
+
+  const btn = document.getElementById('btn-reg');
+  btn.disabled = true; btn.textContent = 'Registrando...';
+
+  // Verificar que el documento no exista
+  const { data: existe } = await sb.from('usuarios').select('id').eq('documento', doc).single();
+  if (existe) {
+    document.getElementById('reg-alert').innerHTML = alertHTML('Ya existe un usuario con ese documento.');
+    btn.disabled = false; btn.textContent = 'Registrarme'; return;
+  }
+
+  // Crear usuario
+  const { data: nuevoUser, error: errUser } = await sb.from('usuarios')
+    .insert({ documento: doc, password: pass, rol: 'alumno', nombre, apellido, primer_login: false })
+    .select().single();
+  if (errUser) {
+    document.getElementById('reg-alert').innerHTML = alertHTML('Error al crear usuario: ' + errUser.message);
+    btn.disabled = false; btn.textContent = 'Registrarme'; return;
+  }
+
+  // Crear alumno
+  const { error: errAlumno } = await sb.from('alumnos')
+    .insert({ usuario_id: nuevoUser.id, documento: doc, nombre, apellido, fecha_nac: fnac, calle, esquina, telefono: tel, tutor, grupo_id: grupoId });
+  if (errAlumno) {
+    document.getElementById('reg-alert').innerHTML = alertHTML('Error al registrar alumno: ' + errAlumno.message);
+    btn.disabled = false; btn.textContent = 'Registrarme'; return;
+  }
+
+  document.getElementById('reg-alert').innerHTML = alertHTML('¡Registro exitoso! Ya podés iniciar sesión.', 'success');
+  btn.disabled = false; btn.textContent = 'Registrarme';
+  setTimeout(showLogin, 2000);
+}
+
+// ============================================================
+// APP INIT
+// ============================================================
+function initApp() {
+  const u = currentUser;
+  document.getElementById('sidebar-name').textContent = u.nombre + (u.apellido ? ' ' + u.apellido : '');
+  document.getElementById('sidebar-role').textContent = u.rol === 'admin' ? 'Administración' : u.rol === 'tallerista' ? 'Tallerista' : 'Alumno';
+  const av = document.getElementById('sidebar-avatar');
+  av.textContent = (u.nombre[0] + (u.apellido ? u.apellido[0] : '')).toUpperCase();
+  av.className = 'avatar ' + u.rol;
+  buildNav();
+  navigateTo(u.primer_login ? 'perfil' : 'dashboard');
+}
+
+function buildNav() {
+  const nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  const rol = currentUser.rol;
+  const sections = [];
+  if (rol === 'admin') {
+    sections.push({ title: 'General', links: [{ id: 'dashboard', icon: '⊞', label: 'Dashboard' }] });
+    sections.push({ title: 'Gestión', links: [
+      { id: 'grupos', icon: '◉', label: 'Grupos' },
+      { id: 'talleristas', icon: '◈', label: 'Talleristas' },
+      { id: 'alumnos', icon: '◍', label: 'Alumnos' },
+    ]});
+  } else if (rol === 'tallerista') {
+    sections.push({ title: 'Mis grupos', links: [
+      { id: 'dashboard', icon: '⊞', label: 'Inicio' },
+      { id: 'asistencia', icon: '✓', label: 'Asistencia' },
+    ]});
+  } else {
+    sections.push({ title: 'Mi cuenta', links: [{ id: 'dashboard', icon: '⊞', label: 'Inicio' }] });
+  }
+  sections.push({ title: '', links: [{ id: 'perfil', icon: '◎', label: 'Mi Perfil' }] });
+  sections.forEach(s => {
+    if (s.title) { const el = document.createElement('div'); el.className = 'nav-section'; el.textContent = s.title; nav.appendChild(el); }
+    s.links.forEach(l => {
+      const el = document.createElement('div');
+      el.className = 'nav-item' + (currentPage === l.id ? ' active' : '');
+      el.dataset.page = l.id;
+      el.innerHTML = `<span class="icon">${l.icon}</span> ${l.label}`;
+      el.onclick = () => navigateTo(l.id);
+      nav.appendChild(el);
+    });
+  });
+}
+
+function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  const titles = { dashboard: 'Dashboard', grupos: 'Grupos', talleristas: 'Talleristas', alumnos: 'Alumnos', asistencia: 'Asistencia', perfil: 'Mi Perfil' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  document.getElementById('topbar-actions').innerHTML = '';
+  renderPage(page);
+}
+
+async function renderPage(page) {
+  const c = document.getElementById('page-' + page);
+  if (page === 'dashboard') await renderDashboard(c);
+  else if (page === 'grupos') await renderGrupos(c);
+  else if (page === 'talleristas') await renderTalleristas(c);
+  else if (page === 'alumnos') await renderAlumnos(c);
+  else if (page === 'asistencia') await renderAsistencia(c);
+  else if (page === 'perfil') renderPerfil(c);
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function renderDashboard(c) {
+  c.innerHTML = loading();
+  const rol = currentUser.rol;
+  if (rol === 'admin') {
+    const [{ count: cGrupos }, { count: cTall }, { count: cAlumnos }] = await Promise.all([
+      sb.from('grupos').select('*', { count: 'exact', head: true }),
+      sb.from('talleristas').select('*', { count: 'exact', head: true }),
+      sb.from('alumnos').select('*', { count: 'exact', head: true }),
+    ]);
+    const { data: grupos } = await sb.from('grupos').select('*, talleristas(nombre,apellido), alumnos(id)').order('nombre');
+    c.innerHTML = `
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Grupos</div><div class="stat-value">${cGrupos||0}</div></div>
+        <div class="stat-card"><div class="stat-label">Talleristas</div><div class="stat-value">${cTall||0}</div></div>
+        <div class="stat-card"><div class="stat-label">Alumnos</div><div class="stat-value">${cAlumnos||0}</div></div>
+      </div>
+      <div class="card-grid">
+        ${(grupos||[]).map(g => {
+          const t = g.talleristas;
+          const cant = (g.alumnos||[]).length;
+          return `<div class="grupo-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <h3 style="font-size:16px">${g.nombre}</h3>
+              <span class="badge badge-alumno">${cant} alumnos</span>
+            </div>
+            <div class="grupo-dias">${(g.dias||[]).map(d=>`<span class="dia-pill">${d}</span>`).join('')}</div>
+            <div style="font-size:13px;color:var(--ink-muted)">${g.horario}</div>
+            ${t ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:6px">Tallerista: ${t.nombre} ${t.apellido}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  } else if (rol === 'tallerista') {
+    const { data: tall } = await sb.from('talleristas').select('*').eq('usuario_id', currentUser.id).single();
+    const { data: grupos } = await sb.from('grupos').select('*, alumnos(id)').eq('tallerista_id', tall?.id).order('nombre');
+    const totalAlumnos = (grupos||[]).reduce((s,g) => s + (g.alumnos||[]).length, 0);
+    c.innerHTML = `
+      ${currentUser.primer_login ? `<div class="first-login-banner"><span>⚠</span><p>Debés cambiar tu contraseña. Andá a <strong>Mi Perfil</strong>.</p></div>` : ''}
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Mis grupos</div><div class="stat-value">${(grupos||[]).length}</div></div>
+        <div class="stat-card"><div class="stat-label">Mis alumnos</div><div class="stat-value">${totalAlumnos}</div></div>
+      </div>
+      <div class="card-grid">
+        ${(grupos||[]).map(g => `<div class="grupo-card" onclick="navigateTo('asistencia')" style="cursor:pointer">
+          <h3 style="font-size:16px;margin-bottom:6px">${g.nombre}</h3>
+          <div class="grupo-dias">${(g.dias||[]).map(d=>`<span class="dia-pill">${d}</span>`).join('')}</div>
+          <div style="font-size:13px;color:var(--ink-muted)">${g.horario}</div>
+          <div style="font-size:13px;color:var(--ink-soft);margin-top:6px">${(g.alumnos||[]).length} alumno(s)</div>
+        </div>`).join('')}
+      </div>`;
+  } else {
+    const { data: alumno } = await sb.from('alumnos').select('*, grupos(*, talleristas(nombre,apellido))').eq('usuario_id', currentUser.id).single();
+    const g = alumno?.grupos;
+    c.innerHTML = `<div class="card" style="max-width:500px">
+      <h3 style="font-size:18px;margin-bottom:16px">Mi inscripción</h3>
+      ${g ? `
+        <div style="margin-bottom:12px"><span style="font-size:12px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em">Grupo</span><p style="font-size:16px;margin-top:2px">${g.nombre}</p></div>
+        <div class="grupo-dias" style="margin-bottom:12px">${(g.dias||[]).map(d=>`<span class="dia-pill">${d}</span>`).join('')} <span style="font-size:13px;color:var(--ink-muted)">${g.horario}</span></div>
+        ${g.talleristas ? `<div><span style="font-size:12px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em">Tallerista</span><p style="font-size:15px;margin-top:2px">${g.talleristas.nombre} ${g.talleristas.apellido}</p></div>` : ''}
+      ` : '<p style="color:var(--ink-muted)">No estás inscripto en ningún grupo.</p>'}
+    </div>`;
+  }
+}
+
+// ============================================================
+// GRUPOS
+// ============================================================
+async function renderGrupos(c) {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-primary btn-sm" onclick="modalNuevoGrupo()">+ Nuevo Grupo</button>`;
+  c.innerHTML = loading();
+  const { data: grupos } = await sb.from('grupos').select('*, talleristas(id,nombre,apellido), alumnos(id,nombre,apellido,documento)').order('nombre');
+  if (!grupos || grupos.length === 0) { c.innerHTML = `<div class="empty"><div style="font-size:36px">◉</div><p>No hay grupos creados.</p></div>`; return; }
+  c.innerHTML = `<div class="card-grid">${grupos.map(g => {
+    const t = g.talleristas;
+    const alumnos = g.alumnos || [];
+    return `<div class="grupo-card">
+      <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:8px">
+        <h3 style="font-size:16px">${g.nombre}</h3>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="modalEditarGrupo('${g.id}')">✎</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarGrupo('${g.id}')">✕</button>
+        </div>
+      </div>
+      <div class="grupo-dias">${(g.dias||[]).map(d=>`<span class="dia-pill">${d}</span>`).join('')}</div>
+      <div style="font-size:13px;color:var(--ink-muted);margin-bottom:8px">${g.horario}</div>
+      ${t ? `<div style="font-size:13px;margin-bottom:10px"><span style="color:var(--ink-muted)">Tallerista:</span> ${t.nombre} ${t.apellido}</div>` : '<div style="font-size:13px;color:var(--terracotta);margin-bottom:10px">Sin tallerista asignado</div>'}
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Alumnos (${alumnos.length})</div>
+        ${alumnos.length === 0 ? '<p style="font-size:13px;color:var(--ink-muted)">Sin alumnos inscriptos</p>' :
+          alumnos.map(a => `<div class="alumno-row"><span style="font-size:14px">${a.nombre} ${a.apellido}</span><span style="font-size:12px;color:var(--ink-muted)">${a.documento}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function modalNuevoGrupo() {
+  const { data: talleristas } = await sb.from('talleristas').select('id,nombre,apellido').order('apellido');
+  const diasOpts = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  document.getElementById('modal-title').textContent = 'Nuevo Grupo';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label>Nombre del Grupo</label><input type="text" id="m-nombre" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Horario inicio</label><input type="time" id="m-hinicio" /></div>
+      <div class="form-group"><label>Horario fin</label><input type="time" id="m-hfin" /></div>
+    </div>
+    <div class="form-group"><label>Días de clase</label>
+      <ul class="check-list">${diasOpts.map(d=>`<li><input type="checkbox" value="${d}" class="dia-check"> ${d}</li>`).join('')}</ul>
+    </div>
+    <div class="form-group"><label>Tallerista asignado</label>
+      <select id="m-tallerista"><option value="">— Sin asignar —</option>${(talleristas||[]).map(t=>`<option value="${t.id}">${t.nombre} ${t.apellido}</option>`).join('')}</select>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModalDirect()">Cancelar</button>
+    <button class="btn btn-primary" id="btn-save-grupo" onclick="guardarGrupo()">Guardar</button>`;
+  openModal();
+}
+
+async function guardarGrupo(id = null) {
+  const nombre = document.getElementById('m-nombre').value.trim();
+  const hinicio = document.getElementById('m-hinicio').value;
+  const hfin = document.getElementById('m-hfin').value;
+  const dias = [...document.querySelectorAll('.dia-check:checked')].map(c => c.value);
+  const talleristaId = document.getElementById('m-tallerista').value || null;
+  if (!nombre || !hinicio || !hfin || dias.length === 0) { alert('Completá nombre, horario y al menos un día.'); return; }
+  const btn = document.getElementById('btn-save-grupo');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  const payload = { nombre, dias, horario: hinicio + ' - ' + hfin, tallerista_id: talleristaId };
+  if (id) {
+    await sb.from('grupos').update(payload).eq('id', id);
+  } else {
+    await sb.from('grupos').insert(payload);
+  }
+  closeModalDirect();
+  await renderPage('grupos');
+}
+
+async function modalEditarGrupo(id) {
+  const { data: g } = await sb.from('grupos').select('*').eq('id', id).single();
+  const { data: talleristas } = await sb.from('talleristas').select('id,nombre,apellido').order('apellido');
+  const diasOpts = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  const [hi, hf] = (g.horario || ' - ').split(' - ');
+  document.getElementById('modal-title').textContent = 'Editar Grupo';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label>Nombre del Grupo</label><input type="text" id="m-nombre" value="${g.nombre}" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Horario inicio</label><input type="time" id="m-hinicio" value="${hi}" /></div>
+      <div class="form-group"><label>Horario fin</label><input type="time" id="m-hfin" value="${hf}" /></div>
+    </div>
+    <div class="form-group"><label>Días de clase</label>
+      <ul class="check-list">${diasOpts.map(d=>`<li><input type="checkbox" value="${d}" class="dia-check" ${(g.dias||[]).includes(d)?'checked':''}> ${d}</li>`).join('')}</ul>
+    </div>
+    <div class="form-group"><label>Tallerista asignado</label>
+      <select id="m-tallerista"><option value="">— Sin asignar —</option>${(talleristas||[]).map(t=>`<option value="${t.id}" ${g.tallerista_id===t.id?'selected':''}>${t.nombre} ${t.apellido}</option>`).join('')}</select>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModalDirect()">Cancelar</button>
+    <button class="btn btn-primary" id="btn-save-grupo" onclick="guardarGrupo('${id}')">Guardar</button>`;
+  openModal();
+}
+
+async function eliminarGrupo(id) {
+  if (!confirm('¿Eliminar este grupo? Los alumnos quedarán sin grupo asignado.')) return;
+  await sb.from('grupos').delete().eq('id', id);
+  await renderPage('grupos');
+}
+
+// ============================================================
+// TALLERISTAS
+// ============================================================
+async function renderTalleristas(c) {
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn btn-primary btn-sm" onclick="modalNuevoTallerista()">+ Nuevo Tallerista</button>`;
+  c.innerHTML = loading();
+  const { data: talleristas } = await sb.from('talleristas').select('*, usuarios(primer_login), grupos(id,nombre)').order('apellido');
+  c.innerHTML = `<div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Grupos</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${(talleristas||[]).length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--ink-muted);padding:32px">Sin talleristas registrados</td></tr>' :
+      (talleristas||[]).map(t => `<tr>
+        <td><strong>${t.nombre} ${t.apellido}</strong><br><span style="font-size:12px;color:var(--ink-muted)">${t.direccion||''}</span></td>
+        <td>${t.documento}</td>
+        <td>${t.telefono||''}</td>
+        <td>${(t.grupos||[]).map(g=>`<span class="badge badge-alumno" style="margin:2px">${g.nombre}</span>`).join('') || '<span style="color:var(--ink-muted)">—</span>'}</td>
+        <td>${t.usuarios?.primer_login ? '<span class="badge badge-pending">Primer login</span>' : '<span class="badge badge-success">Activo</span>'}</td>
+        <td style="text-align:right">
+          <button class="btn btn-ghost btn-sm" onclick="modalEditarTallerista('${t.id}')">✎ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarTallerista('${t.id}', '${t.usuario_id}')">✕</button>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+
+function formTalleristaHTML(t = {}) {
+  return `
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input type="text" id="m-nombre" value="${t.nombre||''}" /></div>
+      <div class="form-group"><label>Apellido</label><input type="text" id="m-apellido" value="${t.apellido||''}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cédula</label><input type="text" id="m-doc" value="${t.documento||''}" ${t.id?'readonly':''}/></div>
+      <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="m-fnac" value="${t.fecha_nac||''}" /></div>
+    </div>
+    <div class="form-group"><label>Dirección</label><input type="text" id="m-dir" value="${t.direccion||''}" /></div>
+    <div class="form-group"><label>Teléfono</label><input type="text" id="m-tel" value="${t.telefono||''}" /></div>
+    ${!t.id ? `<div class="form-group"><label>Contraseña inicial</label><input type="text" id="m-pass" placeholder="Si dejás vacío se usa la cédula" /></div>` : ''}`;
+}
+
+function modalNuevoTallerista() {
+  document.getElementById('modal-title').textContent = 'Registrar Tallerista';
+  document.getElementById('modal-body').innerHTML = formTalleristaHTML();
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModalDirect()">Cancelar</button>
+    <button class="btn btn-primary" id="btn-save-tall" onclick="guardarTallerista()">Registrar</button>`;
+  openModal();
+}
+
+async function guardarTallerista(id = null) {
+  const nombre = document.getElementById('m-nombre').value.trim();
+  const apellido = document.getElementById('m-apellido').value.trim();
+  const doc = document.getElementById('m-doc').value.trim();
+  const fnac = document.getElementById('m-fnac').value || null;
+  const dir = document.getElementById('m-dir').value.trim();
+  const tel = document.getElementById('m-tel').value.trim();
+  if (!nombre || !apellido || !doc) { alert('Completá nombre, apellido y cédula.'); return; }
+  const btn = document.getElementById('btn-save-tall');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  if (id) {
+    await sb.from('talleristas').update({ nombre, apellido, fecha_nac: fnac, direccion: dir, telefono: tel }).eq('id', id);
+    const { data: t } = await sb.from('talleristas').select('usuario_id').eq('id', id).single();
+    await sb.from('usuarios').update({ nombre, apellido }).eq('id', t.usuario_id);
+  } else {
+    const passEl = document.getElementById('m-pass');
+    const pass = passEl?.value.trim() || doc;
+    const { data: existe } = await sb.from('usuarios').select('id').eq('documento', doc).maybeSingle();
+    if (existe) { alert('Ya existe un usuario con esa cédula.'); btn.disabled = false; btn.textContent = 'Registrar'; return; }
+    const { data: nuevoUser } = await sb.from('usuarios')
+      .insert({ documento: doc, password: pass, rol: 'tallerista', nombre, apellido, primer_login: true })
+      .select().single();
+    await sb.from('talleristas').insert({ usuario_id: nuevoUser.id, documento: doc, nombre, apellido, fecha_nac: fnac, direccion: dir, telefono: tel });
+  }
+  closeModalDirect();
+  await renderPage('talleristas');
+}
+
+async function modalEditarTallerista(id) {
+  const { data: t } = await sb.from('talleristas').select('*').eq('id', id).single();
+  document.getElementById('modal-title').textContent = 'Editar Tallerista';
+  document.getElementById('modal-body').innerHTML = formTalleristaHTML(t);
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModalDirect()">Cancelar</button>
+    <button class="btn btn-primary" id="btn-save-tall" onclick="guardarTallerista('${id}')">Guardar</button>`;
+  openModal();
+}
+
+async function eliminarTallerista(id, usuarioId) {
+  if (!confirm('¿Eliminar este tallerista? También se eliminará su acceso.')) return;
+  await sb.from('talleristas').delete().eq('id', id);
+  await sb.from('usuarios').delete().eq('id', usuarioId);
+  await renderPage('talleristas');
+}
+
+// ============================================================
+// ALUMNOS
+// ============================================================
+let alumnoSearch = '';
+async function renderAlumnos(c) {
+  document.getElementById('topbar-actions').innerHTML = '';
+  c.innerHTML = loading();
+  let query = sb.from('alumnos').select('*, grupos(nombre), usuarios(id)').order('apellido');
+  const { data: alumnos } = await query;
+  const filtrados = alumnoSearch
+    ? (alumnos||[]).filter(a => `${a.nombre} ${a.apellido} ${a.documento}`.toLowerCase().includes(alumnoSearch.toLowerCase()))
+    : (alumnos||[]);
+  c.innerHTML = `<div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Alumnos inscriptos (${(alumnos||[]).length})</h3>
+      <input type="text" class="search-input" placeholder="Buscar..." value="${alumnoSearch}" oninput="alumnoSearch=this.value;renderPage('alumnos')" />
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Tutor</th><th>Grupo</th><th></th></tr></thead>
+      <tbody>${filtrados.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--ink-muted);padding:32px">Sin resultados</td></tr>' :
+        filtrados.map(a => `<tr>
+          <td><strong>${a.nombre} ${a.apellido}</strong><br><span style="font-size:12px;color:var(--ink-muted)">${a.calle||''} ${a.esquina ? 'esq. '+a.esquina : ''}</span></td>
+          <td>${a.documento}</td>
+          <td>${a.telefono||''}</td>
+          <td style="font-size:13px">${a.tutor||''}</td>
+          <td>${a.grupos ? `<span class="badge badge-alumno">${a.grupos.nombre}</span>` : '<span style="color:var(--ink-muted)">Sin grupo</span>'}</td>
+          <td style="text-align:right">
+            <button class="btn btn-ghost btn-sm" onclick="modalEditarAlumno('${a.id}')">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="eliminarAlumno('${a.id}', '${a.usuario_id}')">✕</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+async function modalEditarAlumno(id) {
+  const { data: a } = await sb.from('alumnos').select('*').eq('id', id).single();
+  const { data: grupos } = await sb.from('grupos').select('id,nombre').order('nombre');
+  document.getElementById('modal-title').textContent = 'Editar Alumno';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input type="text" id="m-nombre" value="${a.nombre}" /></div>
+      <div class="form-group"><label>Apellido</label><input type="text" id="m-apellido" value="${a.apellido}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cédula</label><input type="text" id="m-doc" value="${a.documento}" readonly /></div>
+      <div class="form-group"><label>Fecha de nacimiento</label><input type="date" id="m-fnac" value="${a.fecha_nac||''}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Calle y número</label><input type="text" id="m-calle" value="${a.calle||''}" /></div>
+      <div class="form-group"><label>Esquina</label><input type="text" id="m-esquina" value="${a.esquina||''}" /></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Teléfono</label><input type="text" id="m-tel" value="${a.telefono||''}" /></div>
+      <div class="form-group"><label>Tutor</label><input type="text" id="m-tutor" value="${a.tutor||''}" /></div>
+    </div>
+    <div class="form-group"><label>Grupo</label>
+      <select id="m-grupo"><option value="">— Sin grupo —</option>${(grupos||[]).map(g=>`<option value="${g.id}" ${a.grupo_id===g.id?'selected':''}>${g.nombre}</option>`).join('')}</select>
+    </div>`;
+  document.getElementById('modal-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModalDirect()">Cancelar</button>
+    <button class="btn btn-primary" id="btn-save-al" onclick="guardarAlumno('${id}', '${a.usuario_id}')">Guardar</button>`;
+  openModal();
+}
+
+async function guardarAlumno(id, usuarioId) {
+  const nombre = document.getElementById('m-nombre').value.trim();
+  const apellido = document.getElementById('m-apellido').value.trim();
+  const fnac = document.getElementById('m-fnac').value || null;
+  const calle = document.getElementById('m-calle').value.trim();
+  const esquina = document.getElementById('m-esquina').value.trim();
+  const tel = document.getElementById('m-tel').value.trim();
+  const tutor = document.getElementById('m-tutor').value.trim();
+  const grupoId = document.getElementById('m-grupo').value || null;
+  const btn = document.getElementById('btn-save-al');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  await sb.from('alumnos').update({ nombre, apellido, fecha_nac: fnac, calle, esquina, telefono: tel, tutor, grupo_id: grupoId }).eq('id', id);
+  await sb.from('usuarios').update({ nombre, apellido }).eq('id', usuarioId);
+  closeModalDirect();
+  await renderPage('alumnos');
+}
+
+async function eliminarAlumno(id, usuarioId) {
+  if (!confirm('¿Eliminar este alumno?')) return;
+  await sb.from('alumnos').delete().eq('id', id);
+  await sb.from('usuarios').delete().eq('id', usuarioId);
+  await renderPage('alumnos');
+}
+
+// ============================================================
+// ASISTENCIA
+// ============================================================
+async function renderAsistencia(c) {
+  c.innerHTML = loading();
+  const { data: tall } = await sb.from('talleristas').select('id').eq('usuario_id', currentUser.id).single();
+  const { data: grupos } = await sb.from('grupos').select('id,nombre').eq('tallerista_id', tall?.id).order('nombre');
+
+  if (!grupos || grupos.length === 0) { c.innerHTML = '<p style="color:var(--ink-muted)">No tenés grupos asignados.</p>'; return; }
+  if (!asistGrupoId) asistGrupoId = grupos[0].id;
+
+  const { data: alumnos } = await sb.from('alumnos').select('id,nombre,apellido,documento').eq('grupo_id', asistGrupoId).order('apellido');
+  const { data: asistencias } = await sb.from('asistencias').select('alumno_id,estado').eq('grupo_id', asistGrupoId).eq('fecha', asistFecha);
+  const mapaAsist = {};
+  (asistencias||[]).forEach(a => { mapaAsist[a.alumno_id] = a.estado; });
+  const grupoActual = grupos.find(g => g.id === asistGrupoId);
+
+  c.innerHTML = `
+    <div style="display:flex;gap:14px;margin-bottom:24px;flex-wrap:wrap">
+      <div class="form-group" style="margin:0;min-width:200px">
+        <label style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);display:block;margin-bottom:6px">Grupo</label>
+        <select onchange="asistGrupoId=this.value;renderPage('asistencia')" style="padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;width:100%">
+          ${grupos.map(g=>`<option value="${g.id}" ${asistGrupoId===g.id?'selected':''}>${g.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);display:block;margin-bottom:6px">Fecha</label>
+        <input type="date" value="${asistFecha}" onchange="asistFecha=this.value;renderPage('asistencia')" style="padding:9px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif" />
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">${grupoActual?.nombre} — ${formatFecha(asistFecha)}</h3>
+        <span class="badge badge-alumno">${(alumnos||[]).length} alumnos</span>
+      </div>
+      ${(alumnos||[]).length === 0 ? '<p style="color:var(--ink-muted)">No hay alumnos en este grupo.</p>' :
+        `<div class="table-wrap"><table>
+          <thead><tr><th>Alumno</th><th>Cédula</th><th style="text-align:right">Asistencia</th></tr></thead>
+          <tbody>${alumnos.map(a => {
+            const estado = mapaAsist[a.id] || null;
+            return `<tr>
+              <td>${a.nombre} ${a.apellido}</td>
+              <td>${a.documento}</td>
+              <td style="text-align:right">
+                <button class="asist-btn ${estado==='presente'?'presente':''}" onclick="marcarAsistencia('${a.id}','presente')">✓ Presente</button>
+                <button class="asist-btn ${estado==='ausente'?'ausente':''}" onclick="marcarAsistencia('${a.id}','ausente')" style="margin-left:6px">✕ Ausente</button>
+              </td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>`}
+    </div>`;
+}
+
+async function marcarAsistencia(alumnoId, estado) {
+  await sb.from('asistencias').upsert(
+    { grupo_id: asistGrupoId, alumno_id: alumnoId, fecha: asistFecha, estado },
+    { onConflict: 'grupo_id,alumno_id,fecha' }
+  );
+  await renderPage('asistencia');
+}
+
+// ============================================================
+// PERFIL
+// ============================================================
+function renderPerfil(c) {
+  c.innerHTML = `
+    ${currentUser.primer_login ? `<div class="first-login-banner"><span>⚠</span><p>Por seguridad, debés cambiar tu contraseña antes de continuar.</p></div>` : ''}
+    <div class="card" style="max-width:480px">
+      <h3 class="card-title" style="margin-bottom:20px">Cambiar Contraseña</h3>
+      <div id="perfil-alert"></div>
+      ${!currentUser.primer_login ? `<div class="form-group"><label>Contraseña actual</label><input type="password" id="p-actual" /></div>` : ''}
+      <div class="form-group"><label>Nueva contraseña</label><input type="password" id="p-nueva" /></div>
+      <div class="form-group"><label>Confirmar nueva contraseña</label><input type="password" id="p-confirmar" /></div>
+      <button class="btn btn-primary" id="btn-cambiar-pass" onclick="cambiarPassword()">Actualizar contraseña</button>
+    </div>`;
+}
+
+async function cambiarPassword() {
+  const nueva = document.getElementById('p-nueva').value;
+  const confirmar = document.getElementById('p-confirmar').value;
+  if (!currentUser.primer_login) {
+    const actual = document.getElementById('p-actual').value;
+    if (actual !== currentUser.password) {
+      document.getElementById('perfil-alert').innerHTML = alertHTML('La contraseña actual no es correcta.'); return;
+    }
+  }
+  if (nueva.length < 6) { document.getElementById('perfil-alert').innerHTML = alertHTML('La contraseña debe tener al menos 6 caracteres.'); return; }
+  if (nueva !== confirmar) { document.getElementById('perfil-alert').innerHTML = alertHTML('Las contraseñas no coinciden.'); return; }
+  const btn = document.getElementById('btn-cambiar-pass');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  await sb.from('usuarios').update({ password: nueva, primer_login: false }).eq('id', currentUser.id);
+  currentUser.password = nueva;
+  currentUser.primer_login = false;
+  document.getElementById('perfil-alert').innerHTML = alertHTML('¡Contraseña actualizada!', 'success');
+  btn.disabled = false; btn.textContent = 'Actualizar contraseña';
+  setTimeout(() => navigateTo('dashboard'), 1500);
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
+function closeModalDirect() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('login-screen').classList.contains('hidden')) doLogin();
+});
+</script>
+</body>
+</html>
