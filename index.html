@@ -472,13 +472,22 @@ async function doRegistro() {
 // ============================================================
 // APP INIT
 // ============================================================
-function initApp() {
+let currentTallerista = null;
+
+async function initApp() {
   const u = currentUser;
   document.getElementById('sidebar-name').textContent = u.nombre + (u.apellido?' '+u.apellido:'');
   document.getElementById('sidebar-role').textContent = u.rol==='admin'?'Administración':u.rol==='tallerista'?'Tallerista':'Alumno';
   const av = document.getElementById('sidebar-avatar');
   av.textContent = (u.nombre[0]+(u.apellido?u.apellido[0]:'')).toUpperCase();
   av.className = 'avatar ' + u.rol;
+  // Verificar si este usuario tiene registro en tabla talleristas (aplica a talleristas y admins que dan clases)
+  if (u.rol === 'admin' || u.rol === 'tallerista') {
+    const { data: tall } = await sb.from('talleristas').select('id').eq('usuario_id', u.id).maybeSingle();
+    currentTallerista = tall || null;
+  } else {
+    currentTallerista = null;
+  }
   buildNav();
   navigateTo(u.primer_login?'perfil':'dashboard');
 }
@@ -491,6 +500,10 @@ function buildNav() {
   if (rol==='admin') {
     sections.push({title:'General', links:[{id:'dashboard',icon:'⊞',label:'Dashboard'}]});
     sections.push({title:'Gestión', links:[{id:'grupos',icon:'◉',label:'Grupos'},{id:'talleristas',icon:'◈',label:'Talleristas'},{id:'alumnos',icon:'◍',label:'Alumnos'}]});
+    // Si el admin también está registrado como tallerista, mostrarle asistencia
+    if (currentTallerista) {
+      sections.push({title:'Mis clases', links:[{id:'asistencia',icon:'✓',label:'Asistencia'}]});
+    }
   } else if (rol==='tallerista') {
     sections.push({title:'Mis grupos', links:[{id:'dashboard',icon:'⊞',label:'Inicio'},{id:'asistencia',icon:'✓',label:'Asistencia'}]});
   } else {
@@ -983,8 +996,10 @@ async function eliminarAlumno(id, usuarioId) {
 // ============================================================
 async function renderAsistencia(c) {
   c.innerHTML=loading();
-  const {data:tall} = await sb.from('talleristas').select('id').eq('usuario_id',currentUser.id).single();
-  const {data:grupos} = await sb.from('grupos').select('id,nombre').eq('tallerista_id',tall?.id).order('nombre');
+  // Usa currentTallerista ya cargado en initApp (funciona para admin y tallerista)
+  const tallId = currentTallerista?.id || null;
+  if (!tallId) { c.innerHTML='<p style="color:var(--ink-muted)">No estás registrado como tallerista.</p>'; return; }
+  const {data:grupos} = await sb.from('grupos').select('id,nombre').eq('tallerista_id',tallId).order('nombre');
   if (!grupos||grupos.length===0) { c.innerHTML='<p style="color:var(--ink-muted)">No tenés grupos asignados.</p>'; return; }
   if (!asistGrupoId) asistGrupoId=grupos[0].id;
   const {data:alumnos} = await sb.from('alumnos').select('id,nombre,apellido,documento').eq('grupo_id',asistGrupoId).order('apellido');
