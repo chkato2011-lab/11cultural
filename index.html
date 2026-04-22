@@ -615,21 +615,26 @@ function buildDiasHorarioUI(diasSel=[], horario_dias={}) {
     </div>`;
 }
 
+function diaKey(dia) {
+  // Usa el índice numérico del día en DIAS_SEMANA como key — sin tildes, sin problemas de encoding
+  return DIAS_SEMANA.indexOf(dia);
+}
+
 function buildHorarioDiaRow(dia, h={}) {
-  const key = dia.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  return `<div class="dia-horario-row" id="hrow-${key}">
+  const k = diaKey(dia);
+  return `<div class="dia-horario-row" id="hrow-${k}" data-dia="${dia}">
     <span class="dia-label">${dia}</span>
     <div class="hora-inputs">
-      <input type="time" id="hi-${key}" value="${h.inicio||''}" placeholder="Inicio" />
+      <input type="time" id="hi-${k}" value="${h.inicio||''}" placeholder="Inicio" />
       <span>a</span>
-      <input type="time" id="hf-${key}" value="${h.fin||''}" placeholder="Fin" />
+      <input type="time" id="hf-${k}" value="${h.fin||''}" placeholder="Fin" />
     </div>
   </div>`;
 }
 
 function toggleHorarioDia(dia, checked) {
   const container = document.getElementById('horarios-container');
-  const key = dia.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const k = diaKey(dia);
   if (checked) {
     const diasActivos = DIAS_SEMANA.filter(d=>document.getElementById('dck-'+d)?.checked);
     const idx = diasActivos.indexOf(dia);
@@ -639,18 +644,18 @@ function toggleHorarioDia(dia, checked) {
     if (idx >= rows.length) container.appendChild(tmp.firstElementChild);
     else container.insertBefore(tmp.firstElementChild, rows[idx]);
   } else {
-    document.getElementById('hrow-'+key)?.remove();
+    document.getElementById('hrow-'+k)?.remove();
   }
 }
 
 function recolectarHorariosDias() {
   const dias = [...document.querySelectorAll('.dia-check:checked')].map(c=>c.value);
-  if (dias.length===0) return null;
+  if (dias.length===0) { alert('Seleccioná al menos un día de clase.'); return null; }
   const horario_dias = {};
   for (const dia of dias) {
-    const key = dia.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    const hi = document.getElementById('hi-'+key)?.value;
-    const hf = document.getElementById('hf-'+key)?.value;
+    const k = diaKey(dia);
+    const hi = document.getElementById('hi-'+k)?.value;
+    const hf = document.getElementById('hf-'+k)?.value;
     if (!hi||!hf) { alert(`Completá el horario del día ${dia}.`); return null; }
     horario_dias[dia] = {inicio:hi, fin:hf};
   }
